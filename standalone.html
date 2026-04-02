@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECU Binary Compare - Standalone</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 { color: #3b82f6; font-size: 2rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #64748b; }
+
+        .drop-zone {
+            border: 2px dashed #3b82f6;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            margin: 1.5rem 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: #60a5fa;
+        }
+
+        .drop-zone-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .drop-zone h3 { color: #94a3b8; margin-bottom: 0.5rem; }
+        .drop-zone p { color: #64748b; font-size: 0.875rem; }
+
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .file-card {
+            background: #1a2332;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border: 1px solid #2d3748;
+        }
+
+        .file-card h4 { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem; }
+        .file-card .name { color: #e2e8f0; font-weight: 500; }
+        .file-card .size { color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { background: #475569; cursor: not-allowed; }
+        .btn-secondary { background: #374151; color: #d1d5db; }
+        .btn-secondary:hover { background: #4b5563; }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin: 1.5rem 0;
+        }
+
+        .results {
+            background: #1a2332;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            border: 1px solid #2d3748;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: #242d3d;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-value { font-size: 1.5rem; font-weight: 600; color: #3b82f6; }
+        .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-top: 0.25rem; }
+
+        .diff-table { width: 100%; border-collapse: collapse; }
+        .diff-table th, .diff-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #2d3748;
+        }
+        .diff-table th { color: #64748b; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+        .diff-table td { font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; }
+
+        .diff-added { color: #22c55e; }
+        .diff-removed { color: #ef4444; }
+        .diff-modified { color: #eab308; }
+
+        .export-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #2d3748;
+        }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            background: #0f1419;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 1rem;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            resize: vertical;
+        }
+
+        .hidden { display: none; }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ECU Binary Compare</h1>
+            <p class="subtitle">Compare ECU binary files and export differences as JSON</p>
+        </header>
+
+        <div class="files-grid">
+            <div class="file-card">
+                <h4>File A (Original)</h4>
+                <div id="fileAName" class="name">No file selected</div>
+                <div id="fileASize" class="size"></div>
+            </div>
+            <div class="file-card">
+                <h4>File B (Modified)</h4>
+                <div id="fileBName" class="name">No file selected</div>
+                <div id="fileBSize" class="size"></div>
+            </div>
+        </div>
+
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <div class="drop-zone-icon">📁</div>
+            <h3>Drop binary files here</h3>
+            <p>Or click to browse (.bin, .hex, .a2l)</p>
+        </div>
+
+        <input type="file" id="fileInput" class="hidden" multiple accept=".bin,.hex,.a2l,.aml">
+
+        <div class="actions">
+            <button class="btn btn-primary" id="compareBtn" disabled onclick="runComparison()">
+                🔍 Compare Files
+            </button>
+            <button class="btn btn-secondary" onclick="loadDemo()">
+                📊 Load Demo
+            </button>
+        </div>
+
+        <div id="results" class="results hidden">
+            <h2 style="margin-bottom: 1rem; color: #94a3b8;">Comparison Results</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotal">0</div>
+                    <div class="stat-label">Total Bytes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statChanged">0</div>
+                    <div class="stat-label">Bytes Changed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statPercent">0%</div>
+                    <div class="stat-label">Changed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statDiffCount">0</div>
+                    <div class="stat-label">Differences</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 1rem 0 0.5rem; color: #64748b; font-size: 0.875rem;">Differences</h3>
+            <table class="diff-table">
+                <thead>
+                    <tr>
+                        <th>Offset</th>
+                        <th>Length</th>
+                        <th>Type</th>
+                        <th>File A</th>
+                        <th>File B</th>
+                    </tr>
+                </thead>
+                <tbody id="diffBody"></tbody>
+            </table>
+
+            <div class="export-section">
+                <h3 style="margin-bottom: 1rem; color: #64748b; font-size: 0.875rem;">JSON Export</h3>
+                <textarea id="jsonOutput" readonly></textarea>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <button class="btn btn-primary" onclick="downloadJSON()">
+                        💾 Download JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fileA = null;
+        let fileB = null;
+        let comparisonResult = null;
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const compareBtn = document.getElementById('compareBtn');
+
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', () => {
+            handleFiles(fileInput.files);
+        });
+
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.name.endsWith('.a2l') || file.name.endsWith('.aml')) {
+                    // A2L file - could be parsed for map definitions
+                    console.log('A2L file:', file.name);
+                } else {
+                    if (!fileA) {
+                        fileA = file;
+                        document.getElementById('fileAName').textContent = file.name;
+                        document.getElementById('fileASize').textContent = formatBytes(file.size);
+                    } else if (!fileB) {
+                        fileB = file;
+                        document.getElementById('fileBName').textContent = file.name;
+                        document.getElementById('fileBSize').textContent = formatBytes(file.size);
+                    }
+                }
+            });
+
+            updateCompareButton();
+        }
+
+        function updateCompareButton() {
+            compareBtn.disabled = !(fileA && fileB);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        async function runComparison() {
+            if (!fileA || !fileB) return;
+
+            const dataA = await fileA.arrayBuffer();
+            const dataB = await fileB.arrayBuffer();
+
+            const bytesA = new Uint8Array(dataA);
+            const bytesB = new Uint8Array(dataB);
+
+            // Compute MD5 (simplified)
+            const md5A = computeSimpleHash(bytesA);
+            const md5B = computeSimpleHash(bytesB);
+
+            // Compare bytes
+            const differences = compareBytes(bytesA, bytesB);
+
+            const totalBytes = Math.max(bytesA.length, bytesB.length);
+            const bytesChanged = differences.reduce((sum, d) => sum + d.length, 0);
+            const percentChanged = (bytesChanged / totalBytes * 100).toFixed(4);
+
+            // Build result
+            comparisonResult = {
+                metadata: {
+                    tool: 'ECU Binary Compare',
+                    version: '1.0.0',
+                    timestamp: new Date().toISOString(),
+                    fileA: { name: fileA.name, size: fileA.size, md5: md5A },
+                    fileB: { name: fileB.name, size: fileB.size, md5: md5B }
+                },
+                statistics: {
+                    total_bytes: totalBytes,
+                    bytes_changed: bytesChanged,
+                    percent_changed: parseFloat(percentChanged)
+                },
+                differences: differences.map(d => ({
+                    offset: '0x' + d.offset.toString(16).toUpperCase().padStart(8, '0'),
+                    offset_decimal: d.offset,
+                    length: d.length,
+                    change_type: d.type,
+                    file_a_bytes: Array.from(d.bytesA).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' '),
+                    file_b_bytes: Array.from(d.bytesB).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+                }))
+            };
+
+            // Update UI
+            document.getElementById('statTotal').textContent = totalBytes.toLocaleString();
+            document.getElementById('statChanged').textContent = bytesChanged.toLocaleString();
+            document.getElementById('statPercent').textContent = percentChanged + '%';
+            document.getElementById('statDiffCount').textContent = differences.length;
+
+            // Update table
+            const tbody = document.getElementById('diffBody');
+            tbody.innerHTML = '';
+
+            differences.slice(0, 50).forEach(diff => {
+                const row = document.createElement('tr');
+                const typeClass = diff.type === 'ADDED' ? 'diff-added' :
+                                  diff.type === 'REMOVED' ? 'diff-removed' : 'diff-modified';
+
+                row.innerHTML = `
+                    <td>0x${diff.offset.toString(16).toUpperCase().padStart(8, '0')}</td>
+                    <td>${diff.length}</td>
+                    <td class="${typeClass}">${diff.type}</td>
+                    <td>${Array.from(diff.bytesA).map(b => b.toString(16).padStart(2, '0')).join(' ')}</td>
+                    <td>${Array.from(diff.bytesB).map(b => b.toString(16).padStart(2, '0')).join(' ')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Update JSON
+            document.getElementById('jsonOutput').value = JSON.stringify(comparisonResult, null, 2);
+
+            // Show results
+            document.getElementById('results').classList.remove('hidden');
+        }
+
+        function compareBytes(bytesA, bytesB) {
+            const differences = [];
+            const maxLength = Math.max(bytesA.length, bytesB.length);
+
+            let diffStart = null;
+
+            for (let i = 0; i < maxLength; i++) {
+                const byteA = i < bytesA.length ? bytesA[i] : null;
+                const byteB = i < bytesB.length ? bytesB[i] : null;
+
+                if (byteA !== byteB) {
+                    if (diffStart === null) diffStart = i;
+                } else if (diffStart !== null) {
+                    differences.push({
+                        offset: diffStart,
+                        length: i - diffStart,
+                        type: determineType(diffStart, i, bytesA.length, bytesB.length),
+                        bytesA: bytesA.slice(diffStart, i),
+                        bytesB: bytesB.slice(diffStart, i)
+                    });
+                    diffStart = null;
+                }
+            }
+
+            if (diffStart !== null) {
+                differences.push({
+                    offset: diffStart,
+                    length: maxLength - diffStart,
+                    type: determineType(diffStart, maxLength, bytesA.length, bytesB.length),
+                    bytesA: bytesA.slice(diffStart),
+                    bytesB: bytesB.slice(diffStart)
+                });
+            }
+
+            return differences;
+        }
+
+        function determineType(start, end, lenA, lenB) {
+            if (start >= lenA) return 'ADDED';
+            if (end > lenB) return 'ADDED';
+            if (start >= lenB) return 'REMOVED';
+            return 'MODIFIED';
+        }
+
+        function computeSimpleHash(data) {
+            let hash = 0;
+            for (let i = 0; i < Math.min(data.length, 1024); i++) {
+                hash = ((hash << 5) - hash) + data[i];
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(16).padStart(8, '0').repeat(4).slice(0, 32);
+        }
+
+        function downloadJSON() {
+            if (!comparisonResult) return;
+
+            const blob = new Blob([JSON.stringify(comparisonResult, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ecu_comparison.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadDemo() {
+            // Generate sample data
+            const size = 8192;
+            const original = new Uint8Array(size);
+            const modified = new Uint8Array(size);
+
+            // Fill with pattern
+            for (let i = 0; i < size; i++) {
+                original[i] = i % 256;
+                modified[i] = i % 256;
+            }
+
+            // Add known parameters
+            original[0x1234] = 0x40; original[0x1235] = 0x1F; // Engine Speed
+            modified[0x1234] = 0x50; modified[0x1235] = 0x23; // +1000 RPM
+
+            original[0x5000] = 100;
+            modified[0x5000] = 130; // Fuel map change
+
+            // Create files
+            fileA = new File([original], 'original.bin', { type: 'application/octet-stream' });
+            fileB = new File([modified], 'modified.bin', { type: 'application/octet-stream' });
+
+            document.getElementById('fileAName').textContent = fileA.name;
+            document.getElementById('fileASize').textContent = formatBytes(fileA.size);
+            document.getElementById('fileBName').textContent = fileB.name;
+            document.getElementById('fileBSize').textContent = formatBytes(fileB.size);
+
+            updateCompareButton();
+            runComparison();
+        }
+    </script>
+</body>
+</html>
