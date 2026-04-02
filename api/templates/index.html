@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECU Binary Compare</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgb(15 23 42); }
+        ::-webkit-scrollbar-thumb { background: rgb(55 65 81); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgb(75 85 99); }
+        .hex-line:hover { background: rgba(59, 130, 246, 0.1); }
+        @keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .slide-in { animation: slide-in 0.3s ease-out; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-semibold text-white">ECU Binary Compare</h1>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="loadDemo()" class="px-4 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Demo
+                        </button>
+                        <button onclick="exportResults('json')" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" id="exportJsonBtn" disabled>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            Export JSON
+                        </button>
+                        <button onclick="exportWinOLS()" class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" id="exportWinOLSBtn" disabled>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            WinOLS
+                        </button>
+                        <button onclick="clearAll()" class="px-4 py-2 text-sm font-medium bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <!-- Drop Zones -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <!-- File A Drop Zone -->
+                <div id="dropZoneA" class="drop-zone relative bg-slate-900/50 border-2 border-dashed border-slate-700 rounded-xl p-6 text-center cursor-pointer hover:border-slate-600 transition-all" onclick="document.getElementById('fileInputA').click()">
+                    <input type="file" id="fileInputA" class="hidden" onchange="handleFileSelect(this.files[0], 'A')">
+                    <div id="fileAIcon" class="w-12 h-12 mx-auto mb-3 rounded-xl bg-slate-800 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-medium text-slate-300 mb-1">Drop File A (Original)</p>
+                    <p class="text-xs text-slate-500">All binary/hex/ECU files supported</p>
+                    <div id="fileAName" class="hidden mt-3 px-3 py-2 bg-slate-800 rounded-lg">
+                        <p class="text-sm text-white font-medium truncate" id="fileANameText"></p>
+                        <p class="text-xs text-slate-400" id="fileASize"></p>
+                    </div>
+                </div>
+
+                <!-- File B Drop Zone -->
+                <div id="dropZoneB" class="drop-zone relative bg-slate-900/50 border-2 border-dashed border-slate-700 rounded-xl p-6 text-center cursor-pointer hover:border-slate-600 transition-all" onclick="document.getElementById('fileInputB').click()">
+                    <input type="file" id="fileInputB" class="hidden" onchange="handleFileSelect(this.files[0], 'B')">
+                    <div id="fileBIcon" class="w-12 h-12 mx-auto mb-3 rounded-xl bg-slate-800 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-medium text-slate-300 mb-1">Drop File B (Modified)</p>
+                    <p class="text-xs text-slate-500">All binary/hex/ECU files supported</p>
+                    <div id="fileBName" class="hidden mt-3 px-3 py-2 bg-slate-800 rounded-lg">
+                        <p class="text-sm text-white font-medium truncate" id="fileBNameText"></p>
+                        <p class="text-xs text-slate-400" id="fileBSize"></p>
+                    </div>
+                </div>
+
+                <!-- A2L/KP/CSV File Drop Zone -->
+                <div id="dropZoneA2L" class="drop-zone relative bg-slate-900/50 border-2 border-dashed border-slate-700 rounded-xl p-6 text-center cursor-pointer hover:border-slate-600 transition-all" onclick="document.getElementById('fileInputA2L').click()">
+                    <input type="file" id="fileInputA2L" class="hidden" accept=".a2l,.aml,.kp,.csv" onchange="handleFileSelect(this.files[0], 'A2L')">
+                    <div id="fileA2LIcon" class="w-12 h-12 mx-auto mb-3 rounded-xl bg-slate-800 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-medium text-slate-300 mb-1">Drop Map Definition File</p>
+                    <p class="text-xs text-slate-500">A2L, KP, or CSV files</p>
+                    <div id="fileA2LName" class="hidden mt-3 px-3 py-2 bg-slate-800 rounded-lg">
+                        <p class="text-sm text-white font-medium truncate" id="fileA2LNameText"></p>
+                        <p class="text-xs text-slate-400" id="fileA2LSize"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions Bar -->
+            <div class="flex items-center gap-3 mb-6 px-4 py-3 bg-slate-900/50 border border-slate-800 rounded-xl">
+                <span class="text-sm text-slate-400">Quick Actions:</span>
+                <button onclick="importKP()" class="px-3 py-1.5 text-xs font-medium bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-600/30 rounded-lg flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    Import KP
+                </button>
+                <button onclick="importCSV()" class="px-3 py-1.5 text-xs font-medium bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-600/30 rounded-lg flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Import CSV
+                </button>
+                <button onclick="convertFormat()" class="px-3 py-1.5 text-xs font-medium bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/30 rounded-lg flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                    </svg>
+                    Convert Format
+                </button>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">File A</span>
+                        <div id="fileABadge" class="w-2 h-2 rounded-full bg-slate-600"></div>
+                    </div>
+                    <p class="text-sm font-semibold text-white truncate" id="statFileA">No file loaded</p>
+                </div>
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">File B</span>
+                        <div id="fileBBadge" class="w-2 h-2 rounded-full bg-slate-600"></div>
+                    </div>
+                    <p class="text-sm font-semibold text-white truncate" id="statFileB">No file loaded</p>
+                </div>
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">Total Bytes</span>
+                    <p class="text-xl font-bold text-white" id="statTotalBytes">—</p>
+                </div>
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">Changed</span>
+                    <p class="text-xl font-bold text-yellow-400" id="statChanged">—</p>
+                </div>
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">Maps Changed</span>
+                    <p class="text-xl font-bold text-purple-400" id="statMapsChanged">—</p>
+                </div>
+            </div>
+
+            <!-- Main Panels - Side by Side Hex View -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- File A Hex View -->
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            <h2 class="text-sm font-semibold text-white">File A (Original)</h2>
+                        </div>
+                        <span class="text-xs text-slate-500" id="fileASizeLabel"></span>
+                    </div>
+                    <div id="hexViewA" class="h-96 overflow-auto font-mono text-xs p-2 bg-slate-950/50">
+                        <div class="text-center text-slate-500 py-20">Load files to view hex</div>
+                    </div>
+                </div>
+
+                <!-- File B Hex View -->
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                            <h2 class="text-sm font-semibold text-white">File B (Modified)</h2>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs">
+                            <span class="flex items-center gap-1">
+                                <span class="w-2 h-2 rounded bg-red-500/50"></span><span class="text-slate-400">Removed</span>
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <span class="w-2 h-2 rounded bg-emerald-500/50"></span><span class="text-slate-400">Added</span>
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <span class="w-2 h-2 rounded bg-yellow-500/50"></span><span class="text-slate-400">Changed</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div id="hexViewB" class="h-96 overflow-auto font-mono text-xs p-2 bg-slate-950/50">
+                        <div class="text-center text-slate-500 py-20">Load files to view hex</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parameters Panel -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                        </svg>
+                        <h2 class="text-sm font-semibold text-white">Parameters</h2>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-xs text-slate-400" id="paramCount">0 parameters</span>
+                    </div>
+                </div>
+
+                <!-- Filter Tabs -->
+                <div class="px-4 py-2 border-b border-slate-800 flex gap-2 overflow-x-auto bg-slate-900/30">
+                    <button onclick="filterParams('all')" class="filter-btn active px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500 text-white" data-filter="all">All</button>
+                    <button onclick="filterParams('VALUE')" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600" data-filter="VALUE">Values</button>
+                    <button onclick="filterParams('MAP')" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600" data-filter="MAP">Maps</button>
+                    <button onclick="filterParams('CURVE')" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600" data-filter="CURVE">Curves</button>
+                    <button onclick="filterParams('AXIS')" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600" data-filter="AXIS">Axes</button>
+                    <button onclick="filterParams('changed')" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600" data-filter="changed">Changed Only</button>
+                </div>
+
+                <div id="paramsList" class="h-72 overflow-auto p-4">
+                    <div class="text-center text-slate-500 py-20">
+                        <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <p>Load an A2L file to see parameters</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="mt-6 px-4 py-3 bg-slate-900/50 border border-slate-800 rounded-xl flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <div id="statusDot" class="w-2 h-2 rounded-full bg-slate-500"></div>
+                        <span class="text-sm text-slate-400" id="statusText">Ready</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-slate-500">
+                    <span id="fileStatus">No files</span>
+                    <span>|</span>
+                    <span id="a2lStatus">No A2L</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t border-slate-800 py-4 mt-auto">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-slate-500">
+                <p>ECU Binary Compare Tool</p>
+                <p>Created by MiniMax Agent</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 z-50 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-4 flex items-center gap-3 slide-in">
+            <div id="toastIcon" class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-white" id="toastTitle">Notification</p>
+                <p class="text-xs text-slate-400" id="toastMessage"></p>
+            </div>
+            <button onclick="hideToast()" class="ml-4 text-slate-400 hover:text-white">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let state = {
+            fileA: null,
+            fileB: null,
+            a2lFile: null,
+            differences: [],
+            maps: [],
+            comparisonResult: null,
+            fileAData: null,
+            fileBData: null,
+            currentFilter: 'all'
+        };
+
+        const API_BASE = '/api';
+
+        // Initialize drop zones
+        function initDropZones() {
+            ['A', 'B', 'A2L'].forEach(zone => {
+                const dropZone = document.getElementById(`dropZone${zone}`);
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, preventDefaults, false);
+                });
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
+                });
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
+                });
+                dropZone.addEventListener('drop', (e) => handleDrop(e, zone), false);
+            });
+        }
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleDrop(e, zone) {
+            const file = e.dataTransfer.files[0];
+            if (file) handleFileSelect(file, zone);
+        }
+
+        async function handleFileSelect(file, zone) {
+            if (!file) return;
+
+            const formData = new FormData();
+            const fileName = file.name.toLowerCase();
+
+            if (zone === 'A') {
+                state.fileA = file;
+                document.getElementById('fileANameText').textContent = file.name;
+                document.getElementById('fileASize').textContent = formatBytes(file.size);
+                document.getElementById('fileAName').classList.remove('hidden');
+                document.getElementById('fileABadge').classList.remove('bg-slate-600');
+                document.getElementById('fileABadge').classList.add('bg-emerald-500');
+                document.getElementById('statFileA').textContent = file.name;
+
+                // Read file data for hex view
+                state.fileAData = await file.arrayBuffer();
+            } else if (zone === 'B') {
+                state.fileB = file;
+                document.getElementById('fileBNameText').textContent = file.name;
+                document.getElementById('fileBSize').textContent = formatBytes(file.size);
+                document.getElementById('fileBName').classList.remove('hidden');
+                document.getElementById('fileBBadge').classList.remove('bg-slate-600');
+                document.getElementById('fileBBadge').classList.add('bg-emerald-500');
+                document.getElementById('statFileB').textContent = file.name;
+
+                // Read file data for hex view
+                state.fileBData = await file.arrayBuffer();
+            } else if (zone === 'A2L') {
+                state.a2lFile = file;
+                document.getElementById('fileA2LNameText').textContent = file.name;
+                document.getElementById('fileA2LSize').textContent = formatBytes(file.size);
+                document.getElementById('fileA2LName').classList.remove('hidden');
+
+                formData.append('file', file);
+
+                try {
+                    let endpoint = '/parse-a2l';
+                    let toastMsg = 'A2L Parsed';
+
+                    // Detect file type and use appropriate parser
+                    if (fileName.endsWith('.csv')) {
+                        endpoint = '/parse-winols-csv';
+                        toastMsg = 'CSV Parsed';
+                    } else if (fileName.endsWith('.kp')) {
+                        endpoint = '/parse-kp';
+                        toastMsg = 'KP Parsed';
+                    }
+
+                    const response = await fetch(`${API_BASE}${endpoint}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    state.maps = data.maps || [];
+                    showToast(toastMsg, `Found ${data.total_maps} map definitions`);
+                    renderParams();
+                } catch (error) {
+                    showToast('Error', 'Failed to parse file', 'error');
+                }
+            }
+
+            updateStatus();
+
+            if (state.fileA && state.fileB) {
+                await compareFiles();
+            }
+        }
+
+        // Import KP file dialog
+        function importKP() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.kp';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    await handleFileSelect(file, 'A2L');
+                }
+            };
+            input.click();
+        }
+
+        // Import CSV file dialog
+        function importCSV() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.csv';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    await handleFileSelect(file, 'A2L');
+                }
+            };
+            input.click();
+        }
+
+        // Convert file format
+        function convertFormat() {
+            if (!state.comparisonResult) {
+                showToast('No Data', 'Compare files first to enable conversion', 'warning');
+                return;
+            }
+
+            // Show conversion options dialog
+            const options = ['WinOLS JSON', 'CSV', 'A2L-compatible'];
+            const choice = prompt(`Select output format:\n1. WinOLS JSON (default)\n2. CSV\n3. A2L-compatible\n\nEnter number:`);
+
+            if (choice === '1' || !choice) {
+                exportWinOLS();
+            } else if (choice === '2') {
+                exportCSV();
+            } else if (choice === '3') {
+                exportA2L();
+            }
+        }
+
+        // Export as CSV
+        function exportCSV() {
+            if (!state.comparisonResult) return;
+
+            const differences = state.comparisonResult.differences || [];
+            const maps = state.comparisonResult.maps || [];
+
+            // Build CSV content
+            let csv = 'Offset;Length;Type;File A Bytes;File B Bytes;Parameter;Parameter Type\n';
+
+            differences.forEach(diff => {
+                csv += `${diff.offset};${diff.length};${diff.change_type};${diff.file_a_bytes};${diff.file_b_bytes};${diff.parameter || ''};${diff.parameter_type || ''}\n`;
+            });
+
+            // Download
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `comparison_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('CSV Export', `${differences.length} differences exported`);
+        }
+
+        // Export as A2L-compatible format
+        function exportA2L() {
+            if (!state.comparisonResult) return;
+
+            const differences = state.comparisonResult.differences || [];
+            const maps = state.comparisonResult.maps || [];
+
+            // Build A2L-like content
+            let a2l = '/begin PROJECT ECU_COMPARE "ECU Compare Project"\n';
+            a2l += '  /begin MODULE Main "Main Module"\n';
+
+            maps.forEach(map => {
+                const addr = map.address || 0;
+                const size = map.size || 2;
+                a2l += `    /begin CHARACTERISTIC ${map.name}\n`;
+                a2l += `      "${map.type}"\n`;
+                a2l += `      ${map.address} ${size}\n`;
+                a2l += `      /begin AXIS_PTS X_Axis\n`;
+                a2l += `        "${map.name}_X"\n`;
+                a2l += `        ${addr - 4}\n`;
+                a2l += `      /end AXIS_PTS\n`;
+                a2l += `    /end CHARACTERISTIC\n`;
+            });
+
+            a2l += '  /end MODULE\n';
+            a2l += '/end PROJECT\n';
+
+            // Download
+            const blob = new Blob([a2l], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `comparison_${Date.now()}.a2l`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('A2L Export', `${maps.length} maps exported`);
+        }
+
+        async function compareFiles() {
+            if (!state.fileA || !state.fileB) return;
+
+            setStatus('Comparing...', 'blue');
+
+            const formData = new FormData();
+            formData.append('file_a', state.fileA);
+            formData.append('file_b', state.fileB);
+            if (state.a2lFile) {
+                formData.append('a2l_file', state.a2lFile);
+            }
+
+            try {
+                const url = state.a2lFile ? `${API_BASE}/compare-with-maps` : `${API_BASE}/compare`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Comparison failed');
+
+                state.comparisonResult = await response.json();
+                state.differences = state.comparisonResult.differences || [];
+                state.maps = state.comparisonResult.maps || [];
+
+                const stats = state.comparisonResult.statistics;
+                document.getElementById('statTotalBytes').textContent = stats.total_bytes.toLocaleString();
+                document.getElementById('statChanged').textContent = stats.bytes_changed.toLocaleString();
+
+                const changedMaps = new Set(state.differences.filter(d => d.parameter).map(d => d.parameter));
+                document.getElementById('statMapsChanged').textContent = changedMaps.size;
+
+                renderHexViews();
+                renderParams();
+
+                document.getElementById('exportJsonBtn').disabled = false;
+                document.getElementById('exportWinOLSBtn').disabled = false;
+                setStatus('Comparison complete', 'green');
+                showToast('Comparison Complete', `Found ${state.differences.length} differences`);
+            } catch (error) {
+                setStatus('Error', 'red');
+                showToast('Error', error.message, 'error');
+            }
+        }
+
+        // Fast hex view state
+        let hexViewMode = 'diff'; // 'diff' or 'full'
+        let hexScrollContainer = null;
+
+        function renderHexViews() {
+            const hexViewA = document.getElementById('hexViewA');
+            const hexViewB = document.getElementById('hexViewB');
+            const fileASizeLabel = document.getElementById('fileASizeLabel');
+
+            if (!state.fileAData || !state.fileBData) {
+                hexViewA.innerHTML = '<div class="text-center text-slate-500 py-20">Loading...</div>';
+                hexViewB.innerHTML = '<div class="text-center text-slate-500 py-20">Loading...</div>';
+                return;
+            }
+
+            const dataA = new Uint8Array(state.fileAData);
+            const dataB = new Uint8Array(state.fileBData);
+
+            fileASizeLabel.textContent = formatBytes(dataA.length);
+
+            // Build diff lookup
+            const diffMap = new Map();
+            state.differences.forEach(d => {
+                for (let i = 0; i < d.length; i++) {
+                    diffMap.set(d.offset_decimal + i, d);
+                }
+            });
+
+            // Get unique diff offsets for jump list
+            const diffOffsets = [...new Set(state.differences.map(d => d.offset_decimal))].sort((a, b) => a - b);
+
+            // Build header with mode toggle
+            let headerHtml = `
+                <div class="sticky top-0 bg-slate-900/95 backdrop-blur z-10 border-b border-slate-800 p-2">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex gap-2">
+                            <button onclick="setHexViewMode('diff')" class="px-3 py-1 text-xs rounded ${hexViewMode === 'diff' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}">
+                                Differences Only (${state.differences.length})
+                            </button>
+                            <button onclick="setHexViewMode('full')" class="px-3 py-1 text-xs rounded ${hexViewMode === 'full' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}">
+                                Full View
+                            </button>
+                        </div>
+                        <span class="text-xs text-slate-500">${formatBytes(dataA.length)}</span>
+                    </div>
+                    ${hexViewMode === 'diff' ? `
+                    <div class="text-xs text-slate-400">
+                        Jump to: ${diffOffsets.slice(0, 10).map(o =>
+                            `<a href="#" onclick="scrollToOffset(${o});return false" class="text-blue-400 hover:underline mr-2">0x${o.toString(16).toUpperCase()}</a>`
+                        ).join('')}${diffOffsets.length > 10 ? `<span class="text-slate-500">+${diffOffsets.length - 10} more</span>` : ''}
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            if (hexViewMode === 'diff') {
+                // FAST: Only render rows with differences
+                let htmlA = '<div class="space-y-0.5 p-2">';
+                let htmlB = '<div class="space-y-0.5 p-2">';
+
+                // Add context around each diff (2 rows before/after)
+                const renderedOffsets = new Set();
+
+                diffOffsets.forEach(offset => {
+                    // Render context rows
+                    for (let ctx = -2; ctx <= 2; ctx++) {
+                        const rowOffset = (Math.floor(offset / 16) + ctx) * 16;
+                        if (rowOffset < 0 || renderedOffsets.has(rowOffset)) continue;
+                        if (rowOffset >= Math.max(dataA.length, dataB.length)) continue;
+
+                        renderedOffsets.add(rowOffset);
+                        const hasDiff = diffMap.has(rowOffset);
+                        const diff = diffMap.get(rowOffset);
+
+                        let rowClass = 'hex-line flex items-center px-1 py-0.5 rounded';
+                        if (hasDiff && diff) {
+                            if (diff.change_type === 'REMOVED' || diff.change_type === 'MODIFIED') {
+                                rowClass += ' bg-red-500/20';
+                            } else {
+                                rowClass += ' bg-emerald-500/20';
+                            }
+                        } else {
+                            rowClass += ' opacity-40';
+                        }
+
+                        // File A
+                        htmlA += renderHexRow(rowOffset, dataA, diffMap, 'A');
+                        // File B
+                        htmlB += renderHexRow(rowOffset, dataB, diffMap, 'B');
+                    }
+                });
+
+                htmlA += '</div>';
+                htmlB += '</div>';
+
+                hexViewA.innerHTML = headerHtml + htmlA;
+                hexViewB.innerHTML = headerHtml.replace('Differences Only', 'Differences Only') + htmlB;
+            } else {
+                // FULL VIEW: Virtual scrolling for large files
+                const ROW_HEIGHT = 24;
+                const VISIBLE_ROWS = Math.ceil(384 / ROW_HEIGHT); // h-96 = 384px
+                const totalRows = Math.ceil(Math.max(dataA.length, dataB.length) / 16);
+
+                // Virtual scroll container with spacer
+                const totalHeight = totalRows * ROW_HEIGHT;
+
+                hexViewA.innerHTML = `
+                    ${headerHtml}
+                    <div class="h-96 overflow-auto" id="hexScrollA" onscroll="handleHexScroll(this, 'A')">
+                        <div class="relative" style="height: ${totalHeight}px">
+                            <div class="absolute w-full space-y-0.5 p-2" id="hexContentA">
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                hexViewB.innerHTML = `
+                    ${headerHtml}
+                    <div class="h-96 overflow-auto" id="hexScrollB" onscroll="handleHexScroll(this, 'B')">
+                        <div class="relative" style="height: ${totalHeight}px">
+                            <div class="absolute w-full space-y-0.5 p-2" id="hexContentB">
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Render initial visible rows
+                renderVisibleRows('A', dataA, diffMap, 0, VISIBLE_ROWS);
+                renderVisibleRows('B', dataB, diffMap, 0, VISIBLE_ROWS);
+            }
+        }
+
+        function renderHexRow(offset, data, diffMap, file) {
+            const diff = diffMap.get(offset);
+            const hasDiff = diffMap.has(offset);
+            let rowClass = 'hex-line flex items-center px-1 py-0.5 rounded';
+
+            if (hasDiff && diff) {
+                if (file === 'A') {
+                    if (diff.change_type === 'REMOVED') rowClass += ' bg-red-500/30';
+                    else if (diff.change_type === 'MODIFIED') rowClass += ' bg-yellow-500/30';
+                } else {
+                    if (diff.change_type === 'ADDED') rowClass += ' bg-emerald-500/30';
+                    else if (diff.change_type === 'MODIFIED') rowClass += ' bg-yellow-500/30';
+                }
+            } else {
+                rowClass += ' opacity-40';
+            }
+
+            let html = `<div class="${rowClass}" data-offset="${offset}">`;
+            html += `<span class="w-20 text-slate-500 shrink-0 font-mono">${offset.toString(16).toUpperCase().padStart(8, '0')}</span>`;
+
+            // Hex bytes
+            for (let j = 0; j < 16; j++) {
+                const absOffset = offset + j;
+                if (absOffset < data.length) {
+                    const isDiff = diffMap.has(absOffset);
+                    const byte = data[absOffset];
+                    const hex = byte.toString(16).toUpperCase().padStart(2, '0');
+                    const colorClass = isDiff ? (file === 'A' ? 'text-red-400' : 'text-emerald-400') : 'text-slate-400';
+                    html += `<span class="w-7 text-center ${colorClass} ${isDiff ? 'font-bold' : ''}">${hex}</span>`;
+                } else {
+                    html += `<span class="w-7 text-center text-slate-700">..</span>`;
+                }
+            }
+
+            html += `<span class="w-4"></span>`;
+
+            // ASCII
+            for (let j = 0; j < 16; j++) {
+                const absOffset = offset + j;
+                if (absOffset < data.length) {
+                    const byte = data[absOffset];
+                    const char = byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
+                    html += `<span class="w-3 text-center ${byte >= 32 && byte <= 126 ? 'text-slate-300' : 'text-slate-600'}">${char}</span>`;
+                }
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        function renderVisibleRows(file, data, diffMap, startRow, count) {
+            const container = document.getElementById(`hexContent${file}`);
+            if (!container) return;
+
+            const ROW_HEIGHT = 24;
+            const offset = startRow * 16;
+
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                const rowOffset = offset + (i * 16);
+                if (rowOffset >= data.length) break;
+                html += renderHexRow(rowOffset, data, diffMap, file);
+            }
+
+            container.innerHTML = html;
+        }
+
+        function handleHexScroll(scrollEl, file) {
+            const data = file === 'A' ? new Uint8Array(state.fileAData) : new Uint8Array(state.fileBData);
+            const diffMap = new Map();
+            state.differences.forEach(d => {
+                for (let i = 0; i < d.length; i++) {
+                    diffMap.set(d.offset_decimal + i, d);
+                }
+            });
+
+            const ROW_HEIGHT = 24;
+            const scrollTop = scrollEl.scrollTop;
+            const startRow = Math.floor(scrollTop / ROW_HEIGHT);
+
+            // Throttle scroll rendering
+            if (!scrollEl._lastScroll || Date.now() - scrollEl._lastScroll > 16) {
+                scrollEl._lastScroll = Date.now();
+                renderVisibleRows(file, data, diffMap, startRow, 20);
+            }
+        }
+
+        function setHexViewMode(mode) {
+            hexViewMode = mode;
+            renderHexViews();
+        }
+
+        function scrollToOffset(offset) {
+            const row = Math.floor(offset / 16);
+            const scrollEl = document.getElementById('hexScrollA');
+            if (scrollEl) {
+                scrollEl.scrollTop = row * 24;
+            }
+        }
+
+        function renderParams() {
+            const paramsList = document.getElementById('paramsList');
+            const paramCount = document.getElementById('paramCount');
+
+            if (state.maps.length === 0) {
+                paramsList.innerHTML = `
+                    <div class="text-center text-slate-500 py-20">
+                        <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <p>Load an A2L file to see parameters</p>
+                    </div>
+                `;
+                paramCount.textContent = '0 parameters';
+                return;
+            }
+
+            const diffParams = new Set(state.differences.filter(d => d.parameter).map(d => d.parameter));
+
+            // Filter maps based on current filter
+            let filteredMaps = state.maps;
+            if (state.currentFilter === 'changed') {
+                filteredMaps = state.maps.filter(m => diffParams.has(m.name));
+            } else if (state.currentFilter !== 'all') {
+                filteredMaps = state.maps.filter(m => m.type === state.currentFilter);
+            }
+
+            const typeColors = {
+                'VALUE': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                'MAP': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+                'CURVE': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                'AXIS': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+            };
+
+            let html = '<div class="space-y-2">';
+
+            if (filteredMaps.length === 0) {
+                html = `<div class="text-center text-slate-500 py-8">No parameters match the current filter</div>`;
+            } else {
+                filteredMaps.forEach(map => {
+                    const isChanged = diffParams.has(map.name);
+                    const diff = state.differences.find(d => d.parameter === map.name);
+
+                    let valuesHtml = '';
+                    if (diff && diff.file_a_bytes && diff.file_b_bytes) {
+                        const valA = parseInt(diff.file_a_bytes.replace(/\s/g, ''), 16) || 0;
+                        const valB = parseInt(diff.file_b_bytes.replace(/\s/g, ''), 16) || 0;
+                        valuesHtml = `
+                            <div class="mt-2 p-2 bg-slate-900/50 rounded text-xs">
+                                <span class="text-red-400">A: ${valA}</span>
+                                <span class="mx-2 text-slate-500">→</span>
+                                <span class="text-emerald-400">B: ${valB}</span>
+                                <span class="ml-2 text-yellow-400">(${valB - valA > 0 ? '+' : ''}${valB - valA})</span>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors ${isChanged ? 'ring-2 ring-yellow-500/50' : ''}">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs font-mono text-slate-400">${map.address ? '0x' + map.address.toString(16).toUpperCase() : 'N/A'}</span>
+                                    <span class="font-medium text-white">${map.name}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 text-xs rounded-full border ${typeColors[map.type] || 'bg-slate-600/20 text-slate-400'}">${map.type}</span>
+                                    ${isChanged ? '<span class="px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Changed</span>' : ''}
+                                </div>
+                            </div>
+                            <div class="mt-2 flex items-center gap-4 text-xs text-slate-500">
+                                <span>Size: ${map.size} bytes</span>
+                                ${map.dim ? `<span>Dimensions: ${Array.isArray(map.dim) ? map.dim.join('x') : map.dim}</span>` : ''}
+                            </div>
+                            ${valuesHtml}
+                        </div>
+                    `;
+                });
+            }
+            html += '</div>';
+
+            paramsList.innerHTML = html;
+
+            const changedCount = state.currentFilter === 'changed' ? filteredMaps.length : diffParams.size;
+            const totalCount = state.currentFilter === 'all' ? state.maps.length :
+                              state.currentFilter === 'changed' ? diffParams.size :
+                              state.maps.filter(m => m.type === state.currentFilter).length;
+            paramCount.textContent = `${changedCount} of ${totalCount} parameters`;
+        }
+
+        function filterParams(filter) {
+            state.currentFilter = filter;
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-slate-700', 'text-slate-300');
+                if (btn.dataset.filter === filter) {
+                    btn.classList.remove('bg-slate-700', 'text-slate-300');
+                    btn.classList.add('bg-blue-500', 'text-white');
+                }
+            });
+
+            renderParams();
+        }
+
+        async function loadDemo() {
+            setStatus('Loading demo...', 'blue');
+            try {
+                const response = await fetch(`${API_BASE}/demo`);
+                if (!response.ok) throw new Error('Failed to load demo');
+
+                state.comparisonResult = await response.json();
+                state.differences = state.comparisonResult.differences || [];
+                state.maps = state.comparisonResult.maps || [];
+
+                // Update UI
+                document.getElementById('fileANameText').textContent = state.comparisonResult.metadata.file_a.name;
+                document.getElementById('fileASize').textContent = formatBytes(state.comparisonResult.metadata.file_a.size);
+                document.getElementById('fileAName').classList.remove('hidden');
+                document.getElementById('fileABadge').classList.remove('bg-slate-600');
+                document.getElementById('fileABadge').classList.add('bg-emerald-500');
+                document.getElementById('statFileA').textContent = state.comparisonResult.metadata.file_a.name;
+
+                document.getElementById('fileBNameText').textContent = state.comparisonResult.metadata.file_b.name;
+                document.getElementById('fileBSize').textContent = formatBytes(state.comparisonResult.metadata.file_b.size);
+                document.getElementById('fileBName').classList.remove('hidden');
+                document.getElementById('fileBBadge').classList.remove('bg-slate-600');
+                document.getElementById('fileBBadge').classList.add('bg-emerald-500');
+                document.getElementById('statFileB').textContent = state.comparisonResult.metadata.file_b.name;
+
+                const stats = state.comparisonResult.statistics;
+                document.getElementById('statTotalBytes').textContent = stats.total_bytes.toLocaleString();
+                document.getElementById('statChanged').textContent = stats.bytes_changed.toLocaleString();
+
+                const changedMaps = new Set(state.differences.filter(d => d.parameter).map(d => d.parameter));
+                document.getElementById('statMapsChanged').textContent = changedMaps.size;
+
+                // Generate demo binary data for hex view
+                state.fileAData = new Uint8Array(state.comparisonResult.metadata.file_a.size);
+                state.fileBData = new Uint8Array(state.comparisonResult.metadata.file_b.size);
+
+                // Fill with sample data based on differences
+                state.differences.forEach(d => {
+                    const bytesA = d.bytes_a || [];
+                    const bytesB = d.bytes_b || [];
+                    bytesA.forEach((b, i) => { if (d.offset_decimal + i < state.fileAData.length) state.fileAData[d.offset_decimal + i] = b; });
+                    bytesB.forEach((b, i) => { if (d.offset_decimal + i < state.fileBData.length) state.fileBData[d.offset_decimal + i] = b; });
+                });
+
+                renderHexViews();
+                renderParams();
+
+                document.getElementById('exportJsonBtn').disabled = false;
+                document.getElementById('exportWinOLSBtn').disabled = false;
+                setStatus('Demo loaded', 'green');
+                showToast('Demo Loaded', 'Sample comparison data loaded successfully');
+            } catch (error) {
+                setStatus('Error', 'red');
+                showToast('Error', error.message, 'error');
+            }
+        }
+
+        function exportResults(format) {
+            if (!state.comparisonResult) return;
+
+            const data = JSON.stringify(state.comparisonResult, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ecu_comparison_${Date.now()}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('Exported', `Downloaded ${format.toUpperCase()} file`);
+        }
+
+        async function exportWinOLS() {
+            if (!state.comparisonResult) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/export/winols-changed`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state.comparisonResult)
+                });
+
+                if (!response.ok) throw new Error('Export failed');
+
+                const winolsData = await response.json();
+                const jsonStr = JSON.stringify(winolsData, null, 2);
+
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `winols_export_${Date.now()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast('WinOLS Export', `${winolsData.Maps.length} maps exported`);
+            } catch (error) {
+                showToast('Export Error', error.message, 'error');
+            }
+        }
+
+        function clearAll() {
+            // Reset state completely
+            state.fileA = null;
+            state.fileB = null;
+            state.a2lFile = null;
+            state.differences = [];
+            state.maps = [];
+            state.comparisonResult = null;
+            state.fileAData = null;
+            state.fileBData = null;
+            state.currentFilter = 'all';
+
+            // Reset file inputs
+            document.getElementById('fileInputA').value = '';
+            document.getElementById('fileInputB').value = '';
+            document.getElementById('fileInputA2L').value = '';
+
+            // Reset file icon badges
+            ['A', 'B'].forEach(zone => {
+                document.getElementById(`file${zone}Icon`).innerHTML = `
+                    <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                `;
+            });
+
+            document.getElementById('fileA2LIcon').innerHTML = `
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            `;
+
+            // Reset drop zones visibility
+            document.getElementById('fileAName').classList.add('hidden');
+            document.getElementById('fileBName').classList.add('hidden');
+            document.getElementById('fileA2LName').classList.add('hidden');
+
+            // Reset badges
+            document.getElementById('fileABadge').classList.remove('bg-emerald-500');
+            document.getElementById('fileABadge').classList.add('bg-slate-600');
+            document.getElementById('fileBBadge').classList.remove('bg-emerald-500');
+            document.getElementById('fileBBadge').classList.add('bg-slate-600');
+
+            // Reset stats
+            document.getElementById('statFileA').textContent = 'No file loaded';
+            document.getElementById('statFileB').textContent = 'No file loaded';
+            document.getElementById('statTotalBytes').textContent = '—';
+            document.getElementById('statChanged').textContent = '—';
+            document.getElementById('statMapsChanged').textContent = '—';
+
+            // Reset hex views completely
+            document.getElementById('hexViewA').innerHTML = `
+                <div class="h-96 flex items-center justify-center bg-slate-950/50">
+                    <div class="text-center text-slate-500">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Load files to view hex</p>
+                        <p class="text-sm mt-1">Drop files or click to browse</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('hexViewB').innerHTML = `
+                <div class="h-96 flex items-center justify-center bg-slate-950/50">
+                    <div class="text-center text-slate-500">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Load files to view hex</p>
+                        <p class="text-sm mt-1">Drop files or click to browse</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('fileASizeLabel').textContent = '';
+
+            // Reset params
+            document.getElementById('paramsList').innerHTML = `
+                <div class="h-72 flex items-center justify-center">
+                    <div class="text-center text-slate-500">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Load a Map Definition File</p>
+                        <p class="text-sm mt-1">A2L, KP, or CSV files supported</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('paramCount').textContent = '0 parameters';
+
+            // Reset filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-slate-700', 'text-slate-300');
+            });
+            document.querySelector('[data-filter="all"]').classList.remove('bg-slate-700', 'text-slate-300');
+            document.querySelector('[data-filter="all"]').classList.add('bg-blue-500', 'text-white');
+
+            // Reset buttons
+            document.getElementById('exportJsonBtn').disabled = true;
+            document.getElementById('exportWinOLSBtn').disabled = true;
+
+            // Reset status
+            setStatus('Ready', 'gray');
+            document.getElementById('fileStatus').textContent = 'No files';
+            document.getElementById('a2lStatus').textContent = 'No A2L';
+
+            showToast('Cleared', 'All data has been reset');
+        }
+
+        function setStatus(text, color) {
+            const colors = {
+                gray: 'bg-slate-500',
+                blue: 'bg-blue-500',
+                green: 'bg-emerald-500',
+                yellow: 'bg-yellow-500',
+                red: 'bg-red-500'
+            };
+            const dot = document.getElementById('statusDot');
+            dot.className = `w-2 h-2 rounded-full ${colors[color] || colors.gray}`;
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function updateStatus() {
+            const fileStatus = document.getElementById('fileStatus');
+            const a2lStatus = document.getElementById('a2lStatus');
+
+            if (state.fileA && state.fileB) {
+                fileStatus.textContent = `${state.fileA.name} vs ${state.fileB.name}`;
+            } else if (state.fileA) {
+                fileStatus.textContent = state.fileA.name;
+            } else if (state.fileB) {
+                fileStatus.textContent = state.fileB.name;
+            } else {
+                fileStatus.textContent = 'No files';
+            }
+
+            a2lStatus.textContent = state.a2lFile ? state.a2lFile.name : 'No A2L';
+        }
+
+        function showToast(title, message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toastIcon');
+            const icons = {
+                info: 'bg-blue-500/20 text-blue-400',
+                success: 'bg-emerald-500/20 text-emerald-400',
+                error: 'bg-red-500/20 text-red-400',
+                warning: 'bg-yellow-500/20 text-yellow-400'
+            };
+
+            icon.className = `w-8 h-8 rounded-lg flex items-center justify-center ${icons[type]}`;
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastMessage').textContent = message;
+            toast.classList.remove('hidden');
+
+            setTimeout(hideToast, 4000);
+        }
+
+        function hideToast() {
+            document.getElementById('toast').classList.add('hidden');
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDropZones();
+            setStatus('Ready', 'gray');
+        });
+    </script>
+</body>
+</html>

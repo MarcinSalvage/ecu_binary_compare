@@ -1,0 +1,46 @@
+# Docker Compose for ECU Binary Compare API Stack
+version: '3.8'
+
+services:
+  # Flask API
+  api:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - redis
+    networks:
+      - ecu-network
+
+  # Redis for Celery
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ecu-network
+
+  # Celery Worker (optional - for async processing)
+  celery-worker:
+    build: .
+    command: celery -A ecu_compare:create_celery_app worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - ecu-network
+
+networks:
+  ecu-network:
+    driver: bridge
+
+volumes:
+  redis-data:

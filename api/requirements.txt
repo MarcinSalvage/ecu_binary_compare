@@ -1,0 +1,11 @@
+# ECU Binary Compare API - Flask Backend
+# Requirements for the Python API server
+
+flask==3.0.0
+flask-cors==4.0.0
+python-multipart==0.0.6
+celery==5.3.4
+redis==5.0.1
+pydantic==2.5.2
+uvicorn==0.24.0
+gunicorn==21.2.0
